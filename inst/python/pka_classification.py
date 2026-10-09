@@ -23,9 +23,6 @@
 #   [SMARTS-RX] - Journal of Cheminformatics (2025), MolecularAI/smartsrx GitHub
 #   [Brenk]     - Brenk et al., ChemMedChem 2008, Supplementary Table S1
 #   [Daylight]  - Daylight SMARTS Tutorial (official SMARTS specification)
-
-#
-
 #
 
 import contextlib
@@ -97,33 +94,32 @@ PKA_RANGE_MIN = 3
 PKA_RANGE_MAX = 11
 
 ACIDIC_PATTERNS = {
-    "carboxylate": "C(=O)[O;H,-]", 
+    "carboxylate": "C(=O)[O;H,-]",  
     "phenol": "[O;H1;$(O-!@c)]",  
     "sulfonamide": "[N;$(NS(=O)(=O))]", 
     "heterocyclic_N_acidic": "[n;D2;H1;$(n1cccc1)]",  
-    "hydroxamate": "C(=O)N[OH]",  # [Brenk]
-    "phosphate": "[O;$([O;D1]P(=O));!$(OP(=O)(=O))]",  
-    "tetrazole": "[nH]1nnnc1",  
-    "thiol": "[SH]",  # [Brenk]
+    "hydroxamate": "C(=O)N[OH]",  
+    "phosphate": "[O;$([O;D1]P(=O));!$(OP(=O)(=O))]", 
+    "tetrazole": "[nH]1nnnc1", 
+    "thiol": "[SH]",  
     "alcohol": "[O;H1;$(O-!@[C;!$(C=!@[O,N,S])])]",  
-    "acidic_amide": "[CX3](=O)[NX3H2,NX3H1]", 
+    "acidic_amide": "[CX3](=O)[NX3H2,NX3H1]",  
     "acidic_aniline": "[NX3H2,NX3H1][cX3]:[c]",  
-    "carbamate": "[N;!$(NC(=O)OC(C)(C)C);!$(NC(=O)OC1c2ccccc2-c3c1cccc3);$(NC(=O)[O;D2])]",  
-    "hydrazide": "C(=O)N[NH2]",  
+    "carbamate": "[N;!$(NC(=O)OC(C)(C)C);!$(NC(=O)OC1c2ccccc2-c3c1cccc3);$(NC(=O)[O;D2])]", 
+    "hydrazide": "C(=O)N[NH2]", 
     "imide": "[N;$(N(C(=O)[#6])C(=O)[#6])]",  
     "sulfate": "OS(=O)(=O)[O-]",  
     "carbonic_acid": "[CX3](=[OX1])([OX2H])[OX2H]", 
 }
 
 BASIC_PATTERNS = {
-    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]", 
-    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]", 
-    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",  
+    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]",  
+    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]",  
+    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",
     "aliphatic_amine": "[N;$(N-[#6]);!$(N-[!#6;!#1]);!$(N-C=[O,N,S])]",  
-    "guanidine": "[N;$(NC(~N)=N)]",  
-    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]",  
+    "guanidine": "[N;$(NC(~N)=N)]",  # [SMARTS-RX]
+    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]", 
     "aniline": "c1cc([NH2])ccc1",  
-    
 }
 
 _ACIDIC_COMPILED = {name: Chem.MolFromSmarts(smarts) for name, smarts in ACIDIC_PATTERNS.items()}
@@ -208,7 +204,8 @@ def extract_relevant_pka(smiles):
             "error": "invalid_smiles",
         }
 
-    states = calculate_microstate_pka_values(mol, only_dimorphite=False)
+    with _pkasolver_runtime():
+        states = calculate_microstate_pka_values(mol, only_dimorphite=False)
 
     sites = [classify_site(s) for s in states]
 
