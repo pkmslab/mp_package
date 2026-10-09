@@ -8,10 +8,10 @@
 #   2. Identify the specific functional group at that atom via SMARTS
 #      substructure matching (checked in the protonated structure for
 #      acids, deprotonated structure for bases), using a hand-curated,
-#      literature-sourced pattern library (see SOURCES below)  NOT
+#      literature-sourced pattern library (see SOURCES below) -- NOT
 #      Dimorphite-DL's bundled table.
 #   3. Only sites with an identifiable, approved functional group are
-#      kept the charge comparison fixes the ACID/BASE label, but does
+#      kept -- the charge comparison fixes the ACID/BASE label, but does
 #      not by itself qualify a site for inclusion.
 #   4. Sites are further restricted to pKa in the physiologically relevant
 #      range 3-11.
@@ -27,46 +27,103 @@
 #
 
 #
-.
 
+import contextlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 from rdkit import Chem
 from pkasolver.query import calculate_microstate_pka_values
 
+
+def _env_python():
+    """Path to the python executable of the CURRENT conda environment."""
+    if os.name == "nt":
+        candidate = os.path.join(sys.exec_prefix, "python.exe")
+    else:
+        candidate = os.path.join(sys.exec_prefix, "bin", "python")
+    return candidate if os.path.exists(candidate) else sys.executable
+
+
+@contextlib.contextmanager
+def _pkasolver_runtime():
+    """Make pkasolver's Dimorphite-DL subprocess call work everywhere.
+
+    pkasolver.query._call_dimorphite_dl() has three portability problems,
+    all worked around here WITHOUT modifying pkasolver:
+
+    1. It calls subprocess.run(["python", ...], stderr=STDOUT) without
+       setting stdout/stdin. Inside RStudio on Windows there is no console
+       handle to inherit, so Windows raises
+       "OSError: [WinError 6] The handle is invalid". We default stdin to
+       DEVNULL and stdout to PIPE.
+    2. It launches the literal command "python", which may be a different
+       interpreter (or the Microsoft Store stub) on another machine. We
+       substitute this environment's own interpreter.
+    3. The helper script writes its results to "test.pkl" in the current
+       working directory, which pkasolver then reads back. We run inside a
+       private temp directory so nothing is written into the user's
+       working directory, and clean up afterwards.
+    """
+    original_run = subprocess.run
+    old_cwd = os.getcwd()
+    tmp_dir = tempfile.mkdtemp(prefix="mp_predict_")
+    env_python = _env_python()
+
+    def patched_run(cmd, *args, **kwargs):
+        if isinstance(cmd, (list, tuple)) and cmd and cmd[0] == "python":
+            cmd = [env_python] + list(cmd[1:])
+        if kwargs.get("stdin") is None:
+            kwargs["stdin"] = subprocess.DEVNULL
+        if kwargs.get("stdout") is None:
+            kwargs["stdout"] = subprocess.PIPE
+        return original_run(cmd, *args, **kwargs)
+
+    subprocess.run = patched_run
+    os.chdir(tmp_dir)
+    try:
+        yield
+    finally:
+        subprocess.run = original_run
+        os.chdir(old_cwd)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
 PKA_RANGE_MIN = 3
 PKA_RANGE_MAX = 11
 
 ACIDIC_PATTERNS = {
-    "carboxylate": "C(=O)[O;H,-]",  
+    "carboxylate": "C(=O)[O;H,-]", 
     "phenol": "[O;H1;$(O-!@c)]",  
-    "sulfonamide": "[N;$(NS(=O)(=O))]",  
+    "sulfonamide": "[N;$(NS(=O)(=O))]", 
     "heterocyclic_N_acidic": "[n;D2;H1;$(n1cccc1)]",  
-    "hydroxamate": "C(=O)N[OH]",  
+    "hydroxamate": "C(=O)N[OH]",  # [Brenk]
     "phosphate": "[O;$([O;D1]P(=O));!$(OP(=O)(=O))]",  
     "tetrazole": "[nH]1nnnc1",  
-    "thiol": "[SH]",  
-    "alcohol": "[O;H1;$(O-!@[C;!$(C=!@[O,N,S])])]", 
-    "acidic_amide": "[CX3](=O)[NX3H2,NX3H1]",  
+    "thiol": "[SH]",  # [Brenk]
+    "alcohol": "[O;H1;$(O-!@[C;!$(C=!@[O,N,S])])]",  
+    "acidic_amide": "[CX3](=O)[NX3H2,NX3H1]", 
     "acidic_aniline": "[NX3H2,NX3H1][cX3]:[c]",  
     "carbamate": "[N;!$(NC(=O)OC(C)(C)C);!$(NC(=O)OC1c2ccccc2-c3c1cccc3);$(NC(=O)[O;D2])]",  
     "hydrazide": "C(=O)N[NH2]",  
-    "imide": "[N;$(N(C(=O)[#6])C(=O)[#6])]", 
-    "sulfate": "OS(=O)(=O)[O-]", 
+    "imide": "[N;$(N(C(=O)[#6])C(=O)[#6])]",  
+    "sulfate": "OS(=O)(=O)[O-]",  
     "carbonic_acid": "[CX3](=[OX1])([OX2H])[OX2H]", 
 }
 
 BASIC_PATTERNS = {
-    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]",  # [SMARTS-RX] pyridine-type
-    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]",  # [SMARTS-RX] 6-membered polyheterocyclic
-    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",  # [SMARTS-RX] 5-membered polyheterocyclic (e.g. purine/imidazole N, caffeine/theophylline) -- verified against training dataset
-    "aliphatic_amine": "[N;$(N-[#6]);!$(N-[!#6;!#1]);!$(N-C=[O,N,S])]",  # [RDKit], cross-confirmed [Daylight]
-    "guanidine": "[N;$(NC(~N)=N)]",  # [SMARTS-RX]
-    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]",  # [SMARTS-RX]
-    "aniline": "c1cc([NH2])ccc1",  # [Brenk]
-    # "basic_amide" removed: the original pattern was a duplicate of amidine (bug).
-    # Basic amide character is captured by the charge-comparison fallback instead.
+    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]", 
+    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]", 
+    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",  
+    "aliphatic_amine": "[N;$(N-[#6]);!$(N-[!#6;!#1]);!$(N-C=[O,N,S])]",  
+    "guanidine": "[N;$(NC(~N)=N)]",  
+    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]",  
+    "aniline": "c1cc([NH2])ccc1",  
+    
 }
 
 _ACIDIC_COMPILED = {name: Chem.MolFromSmarts(smarts) for name, smarts in ACIDIC_PATTERNS.items()}
@@ -114,7 +171,7 @@ def classify_site(state):
     elif fg_base is not None:
         direction, fg, method = "BASE", fg_base, "SMARTS"
     else:
-        # no functional group match at all ,charge fallback fixes the
+        # no functional group match at all -- charge fallback fixes the
         # label but the site is NOT kept (no identifiable functional group)
         direction, fg, method = charge_direction, None, "charge_fallback"
 

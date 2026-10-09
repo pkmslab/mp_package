@@ -151,14 +151,25 @@ verify_rdkit_installed <- function(envname) {
 check_pkasolver_installed <- function(envname = "pka_prediction") {
   tryCatch({
     reticulate::use_condaenv(envname, required = TRUE)
-    pkasolver_query <- reticulate::import("pkasolver.query", delay_load = FALSE)
-    rdkit_chem <- reticulate::import("rdkit.Chem", delay_load = FALSE)
 
-    # caffeine, as a known-good smoke test compound
-    mol <- rdkit_chem$MolFromSmiles("CN1C=NC2=C1C(=O)N(C)C(=O)N2C")
-    states <- pkasolver_query$calculate_microstate_pka_values(mol, only_dimorphite = FALSE)
+    classification_module <- system.file(
+      "python", "pka_classification.py", package = "mp.predict"
+    )
+    pka_mod <- reticulate::import_from_path(
+      "pka_classification",
+      path = dirname(classification_module),
+      delay_load = FALSE
+    )
 
-    length(states) >= 0  # a successful call, even with 0 sites, means the import/runtime works
+    # caffeine, as a known-good smoke test compound. Going through our own
+    # module (not pkasolver directly) exercises the same Windows-safe
+    # subprocess handling that extract_pka() uses.
+    result <- NULL
+    reticulate::py_capture_output({
+      result <- pka_mod$extract_relevant_pka("CN1C=NC2=C1C(=O)N(C)C(=O)N2C")
+    })
+
+    is.null(result$error) && length(result$all_sites) > 0
   }, error = function(e) {
     message("check_pkasolver_installed() failed: ", conditionMessage(e))
     FALSE
