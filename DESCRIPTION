@@ -2,17 +2,17 @@ Package: mp.predict
 Type: Package
 Title: Predict Milk-to-Plasma Ratios for Drugs
 Version: 0.1.0
-Authors@R: person("Anil", "Maharaj",
+Authors@R: c( person("Anil", "Maharaj",
     email = "anil.maharaj@ubc.ca",
-    role = c("aut", "cre")
+    role = c("aut")
     ),
     person("Prabhnoor", "Karwal", 
     email = "prabhi.karwal4@gmail.com", 
     role = c("aut", "cre")
-    )
+    ))
 Description: Predicts milk-to-plasma (M/P) ratios for drugs to estimate infant 
     drug exposure through breast milk, using a trained machine learning model 
-    and pharmacokinetic equations
+    and pharmacokinetic equations.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -22,3 +22,4 @@ Imports:
       httr,
       jsonlite,
       utils
+RoxygenNote: 7.3.3
