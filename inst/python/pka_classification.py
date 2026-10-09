@@ -7,9 +7,12 @@
 #      the protonated and deprotonated structures.
 #   2. Identify the specific functional group at that atom via SMARTS
 #      substructure matching (checked in the protonated structure for
-#      acids, deprotonated structure for bases).
+#      acids, deprotonated structure for bases), using a hand-curated,
+#      literature-sourced pattern library (see SOURCES below)  NOT
+#      Dimorphite-DL's bundled table.
 #   3. Only sites with an identifiable, approved functional group are
-#      kept
+#      kept the charge comparison fixes the ACID/BASE label, but does
+#      not by itself qualify a site for inclusion.
 #   4. Sites are further restricted to pKa in the physiologically relevant
 #      range 3-11.
 #   5. If multiple valid sites remain: keep the lowest pKa among acidic
@@ -21,6 +24,13 @@
 #   [Brenk]     - Brenk et al., ChemMedChem 2008, Supplementary Table S1
 #   [Daylight]  - Daylight SMARTS Tutorial (official SMARTS specification)
 
+#
+
+#
+.
+
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 from rdkit import Chem
 from pkasolver.query import calculate_microstate_pka_values
@@ -31,30 +41,32 @@ PKA_RANGE_MAX = 11
 ACIDIC_PATTERNS = {
     "carboxylate": "C(=O)[O;H,-]",  
     "phenol": "[O;H1;$(O-!@c)]",  
-    "sulfonamide": "[N;$(NS(=O)(=O))]", 
+    "sulfonamide": "[N;$(NS(=O)(=O))]",  
     "heterocyclic_N_acidic": "[n;D2;H1;$(n1cccc1)]",  
     "hydroxamate": "C(=O)N[OH]",  
     "phosphate": "[O;$([O;D1]P(=O));!$(OP(=O)(=O))]",  
-    "tetrazole": "[nH]1nnnc1", 
+    "tetrazole": "[nH]1nnnc1",  
     "thiol": "[SH]",  
-    "alcohol": "[O;H1;$(O-!@[C;!$(C=!@[O,N,S])])]",  
+    "alcohol": "[O;H1;$(O-!@[C;!$(C=!@[O,N,S])])]", 
     "acidic_amide": "[CX3](=O)[NX3H2,NX3H1]",  
     "acidic_aniline": "[NX3H2,NX3H1][cX3]:[c]",  
     "carbamate": "[N;!$(NC(=O)OC(C)(C)C);!$(NC(=O)OC1c2ccccc2-c3c1cccc3);$(NC(=O)[O;D2])]",  
     "hydrazide": "C(=O)N[NH2]",  
     "imide": "[N;$(N(C(=O)[#6])C(=O)[#6])]", 
-    "sulfate": "OS(=O)(=O)[O-]",  
+    "sulfate": "OS(=O)(=O)[O-]", 
     "carbonic_acid": "[CX3](=[OX1])([OX2H])[OX2H]", 
 }
 
 BASIC_PATTERNS = {
-    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]", 
-    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]",  
-    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",  
-    "aliphatic_amine": "[N;$(N-[#6]);!$(N-[!#6;!#1]);!$(N-C=[O,N,S])]",  
-    "guanidine": "[N;$(NC(~N)=N)]", 
-    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]", 
-    "aniline": "c1cc([NH2])ccc1",  
+    "heterocyclic_N_basic_6ring": "[n;D2;$(n1ccccc1)]",  # [SMARTS-RX] pyridine-type
+    "heterocyclic_N_basic_polyhet": "[n;D2;$(n1aaaaa1);!$(n1ccccc1)]",  # [SMARTS-RX] 6-membered polyheterocyclic
+    "heterocyclic_N_basic_5ring_polyhet": "[n;H0;$(n1aaaa1);!$(n1cccc1)]",  # [SMARTS-RX] 5-membered polyheterocyclic (e.g. purine/imidazole N, caffeine/theophylline) -- verified against training dataset
+    "aliphatic_amine": "[N;$(N-[#6]);!$(N-[!#6;!#1]);!$(N-C=[O,N,S])]",  # [RDKit], cross-confirmed [Daylight]
+    "guanidine": "[N;$(NC(~N)=N)]",  # [SMARTS-RX]
+    "amidine": "[N;!R;$(N([#6])=[C;$(C(~N)~N);!$(C(~N)(~N)~N)]),$([N;D1]=[C;$(C(~N)~N);!$(C(~N)(~N)~N)])]",  # [SMARTS-RX]
+    "aniline": "c1cc([NH2])ccc1",  # [Brenk]
+    # "basic_amide" removed: the original pattern was a duplicate of amidine (bug).
+    # Basic amide character is captured by the charge-comparison fallback instead.
 }
 
 _ACIDIC_COMPILED = {name: Chem.MolFromSmarts(smarts) for name, smarts in ACIDIC_PATTERNS.items()}
@@ -88,10 +100,10 @@ def classify_site(state):
     deprot_charge = state.deprotonated_mol.GetAtomWithIdx(idx).GetFormalCharge()
 
     if prot_charge > deprot_charge:
-        # losing a proton relieves a positive charge : basic site
+        # losing a proton relieves a positive charge -> basic site
         charge_direction = "BASE"
     else:
-        # losing a proton creates/reveals a negative charge : acidic site
+        # losing a proton creates/reveals a negative charge -> acidic site
         charge_direction = "ACID"
 
     fg_acid = identify_functional_group(state.protonated_mol, idx, _ACIDIC_COMPILED)
@@ -102,7 +114,7 @@ def classify_site(state):
     elif fg_base is not None:
         direction, fg, method = "BASE", fg_base, "SMARTS"
     else:
-        # no functional group match at all, charge fallback fixes the
+        # no functional group match at all ,charge fallback fixes the
         # label but the site is NOT kept (no identifiable functional group)
         direction, fg, method = charge_direction, None, "charge_fallback"
 

@@ -56,11 +56,35 @@ setup_pkasolver <- function(envname = "pka_prediction", force = FALSE) {
     }
   }
 
-  message("Creating conda environment '", envname, "' (this may take several minutes)...")
+  message("Creating conda environment '", envname, "'...")
   reticulate::conda_create(
     envname  = envname,
-    packages = c("python=3.9", "rdkit", "pytorch", "torchvision", "torchaudio"),
-    channel  = c("pytorch", "conda-forge")
+    packages = c("python=3.9")
+  )
+
+  message("Installing RDKit (this may take a few minutes)...")
+  reticulate::conda_install(
+    envname  = envname,
+    packages = "rdkit",
+    channel  = "conda-forge"
+  )
+
+  if (!verify_rdkit_installed(envname)) {
+    stop(
+      "RDKit could not be installed or imported in the '", envname, "' ",
+      "conda environment. This can happen due to conda channel conflicts ",
+      "on some platforms. Try running manually:\n",
+      "  reticulate::conda_install(envname = \"", envname, "\", packages = \"rdkit\", channel = \"conda-forge\")\n",
+      "and check reticulate::py_config() to confirm the correct environment is active.",
+      call. = FALSE
+    )
+  }
+
+  message("Installing PyTorch (this may take several minutes)...")
+  reticulate::conda_install(
+    envname  = envname,
+    packages = c("pytorch", "torchvision", "torchaudio"),
+    channel  = "pytorch"
   )
 
   message("Installing pinned Python dependencies...")
@@ -90,6 +114,29 @@ setup_pkasolver <- function(envname = "pka_prediction", force = FALSE) {
   }
 
   invisible(envname)
+}
+
+#' Check whether RDKit specifically is importable in a conda environment
+#'
+#' Internal helper used by [setup_pkasolver()] to catch RDKit installation
+#' failures early and with a clear message, rather than letting them
+#' surface later as a cryptic Dimorphite-DL error at prediction time. This
+#' was added after a cross-platform test found that installing RDKit
+#' together with PyTorch in a single mixed-channel (`pytorch` +
+#' `conda-forge`) conda_create() call could silently fail to resolve RDKit
+#' on some platforms, with no error at install time.
+#'
+#' @param envname Name of the conda environment to check.
+#' @return `TRUE` if RDKit imports successfully, `FALSE` otherwise.
+#' @noRd
+verify_rdkit_installed <- function(envname) {
+  tryCatch({
+    reticulate::use_condaenv(envname, required = TRUE)
+    reticulate::import("rdkit.Chem", delay_load = FALSE)
+    TRUE
+  }, error = function(e) {
+    FALSE
+  })
 }
 
 #' Check whether pkasolver is importable in a given conda environment

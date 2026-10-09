@@ -29,19 +29,21 @@ call_pkasolver <- function(smiles, envname = "pka_prediction") {
     )
   }
 
-  pka_mod <- reticulate::import_from_path(
-    "pka_classification",
-    path = dirname(classification_module)
-  )
-
-  result <- tryCatch(
-    pka_mod$extract_relevant_pka(smiles),
-    error = function(e) {
-      warning("pkasolver classification failed on '", smiles, "': ",
-              conditionMessage(e), call. = FALSE)
-      NULL
-    }
-  )
+  result <- NULL
+  captured <- reticulate::py_capture_output({
+    pka_mod <- reticulate::import_from_path(
+      "pka_classification",
+      path = dirname(classification_module)
+    )
+    result <- tryCatch(
+      pka_mod$extract_relevant_pka(smiles),
+      error = function(e) {
+        warning("pkasolver classification failed on '", smiles, "': ",
+                conditionMessage(e), call. = FALSE)
+        NULL
+      }
+    )
+  })
 
   if (is.null(result) || !is.null(result$error)) {
     if (!is.null(result) && identical(result$error, "invalid_smiles")) {
