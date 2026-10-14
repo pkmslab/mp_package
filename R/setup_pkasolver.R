@@ -231,7 +231,6 @@ check_pkasolver_installed <- function(envname = "pka_prediction") {
       delay_load = FALSE
     )
 
-    # caffeine, as a known good smoke test compound
     result <- NULL
     reticulate::py_capture_output({
       result <- pka_mod$extract_relevant_pka("CN1C=NC2=C1C(=O)N(C)C(=O)N2C")
