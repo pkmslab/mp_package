@@ -18,25 +18,37 @@ Invisibly, the name of the conda environment.
 }
 \description{
 `extract_pka()` relies on the Python package \pkg{pkasolver}, which in turn
-requires a pinned set of Python dependencies (notably
-\code{torch-geometric==2.0.1}). These cannot be installed as ordinary R
-package dependencies, so this function creates an isolated conda
-environment and installs everything into it. This only needs to be run
-once per machine.
+requires a carefully matched set of Python dependencies (notably
+\code{torch-geometric==2.0.1}, and compiled PyTorch extensions). These
+cannot be installed as ordinary R package dependencies, so this function
+creates an isolated conda environment and installs everything into it.
+This only needs to be run once per machine.
 }
 \details{
 This function will:
 \enumerate{
   \item Install Miniconda via reticulate, if no conda installation is found
-  \item Create a conda environment with Python 3.9, RDKit, and PyTorch
-  \item Install \code{torch-geometric==2.0.1}, \code{torch-sparse},
-    \code{torch-scatter}, and \code{molvs} via pip inside that environment
-  \item Install pkasolver directly from its GitHub repository
+  \item Create a conda environment with Python 3.9 and install RDKit
+    (from conda-forge), then verify it imports
+  \item Install a pinned, CPU-only PyTorch (2.3.1) from the pytorch channel
+  \item Install \code{numpy<2} and \code{cairosvg} (with its native
+    Cairo libraries) from conda-forge
+  \item Install \code{torch-scatter} and \code{torch-sparse} from
+    \strong{prebuilt wheels only} (no C++ compiler needed)
+  \item Install \code{torch-geometric==2.0.1}, \code{molvs} and
+    \code{svgutils} via pip
+  \item Install pkasolver directly from its GitHub repository (it declares
+    no dependencies of its own, which is why all of the above are listed
+    explicitly)
 }
 
-This is a multi-gigabyte download and can take several minutes. It is
+This is a multi-gigabyte download and can take 10-20 minutes. It is
 deliberately **not** run automatically when the package loads -- call it
 explicitly, once, before your first `extract_pka()` call.
+
+If the final check fails, restart R and run
+`mp.predict:::check_pkasolver_installed()` once more: Python cannot swap
+package versions inside an R session that has already loaded them.
 }
 \examples{
 \dontrun{

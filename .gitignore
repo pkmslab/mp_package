@@ -48,6 +48,12 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 
-#Python cache
+# Python cache
 __pycache__/
 *.pyc
+
+# Mac Finder files
+.DS_Store
+
+# Stray file pkasolver can write into the working directory
+test.pkl
