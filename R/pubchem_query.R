@@ -118,10 +118,20 @@ build_pubchem_result <- function(cid, matched_name, known_cas = NA_character_) {
     "/property/CanonicalSMILES/JSON"
   )
   smiles_resp <- safe_get_json(smiles_url)
-  smiles <- tryCatch(
-    smiles_resp$PropertyTable$Properties[[1]]$CanonicalSMILES,
-    error = function(e) NULL
-  )
+  # PubChem now returns this field as "ConnectivitySMILES" even when
+  # "CanonicalSMILES" was requested. Accept the new name first and keeping the
+  # older names as fallbacks
+  smiles <- tryCatch({
+    props <- smiles_resp$PropertyTable$Properties[[1]]
+    found <- NULL
+    for (field in c("ConnectivitySMILES", "CanonicalSMILES", "SMILES")) {
+      if (!is.null(props[[field]]) && nzchar(props[[field]])) {
+        found <- props[[field]]
+        break
+      }
+    }
+    found
+  }, error = function(e) NULL)
 
   if (is.null(smiles) || !nzchar(smiles)) return(NULL)
 
@@ -135,9 +145,7 @@ build_pubchem_result <- function(cid, matched_name, known_cas = NA_character_) {
   )
 }
 
-
 # PHYSICAL PROPERTIES (used by extract_physical_properties())
-
 
 #' Query PubChem for a compound's physical properties by SMILES
 #'
