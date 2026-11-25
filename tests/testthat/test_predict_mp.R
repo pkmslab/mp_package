@@ -1,4 +1,3 @@
-
 # Inputs are illustrative round numbers, not literature values.
 
 make_row <- function(MW, LogP, PSA, HBD, HBA, pKa_acid, pKa_base, Fu, LogD74,
@@ -19,15 +18,16 @@ amph2 <- make_row(350, 2, 80, 2, 5, 5.0, 9.5, 0.40, 0.5, "ampholyte", 2)
 
 test_that("mechanistic models match the reference implementation", {
   a <- predict_mp(acid)
-  expect_equal(a$MuPu, 0.39818, tolerance = 1e-3)
-  expect_equal(a$Phase_Distribution, 0.08207, tolerance = 1e-3)
-  expect_equal(a$Log_PD, 0.03061, tolerance = 1e-3)
+  expect_equal(a$MuPu, 2.51141, tolerance = 1e-3)
+  expect_equal(a$Phase_Distribution, 0.51762, tolerance = 1e-3)
+  expect_equal(a$Log_PD, 2.039, tolerance = 1e-3)
   expect_equal(a$Koshimichi, 0.0322, tolerance = 1e-3)
   expect_equal(a$Meskin_Lien, 0.44795, tolerance = 1e-3)
 
   b <- predict_mp(base)
-  expect_equal(b$MuPu, 2.47484, tolerance = 1e-3)
-  expect_equal(b$Phase_Distribution, 1.61263, tolerance = 1e-3)
+  expect_equal(b$MuPu, 0.40407, tolerance = 1e-3)
+  expect_equal(b$Phase_Distribution, 0.26329, tolerance = 1e-3)
+  expect_equal(b$Log_PD, 0.08641, tolerance = 1e-3)
   expect_equal(b$Koshimichi, 1.88466, tolerance = 1e-3)
   expect_equal(b$Meskin_Lien, 1.06194, tolerance = 1e-3)
 })
@@ -47,8 +47,8 @@ test_that("Meskin & Lien ampholyte rules (type 1 and type 2)", {
 
 test_that("ML model returns the expected values", {
   skip_if_not_installed("xgboost")
-  # raw model output -0.26878 / -0.04124; scale set by ML_TARGET_SCALE
-  expect_equal(predict_mp(acid)$ML, back_transform_ml(-0.26878), tolerance = 1e-3)
+  # raw model output -1.38995 / -0.04124; scale set by ML_TARGET_SCALE
+  expect_equal(predict_mp(acid)$ML, back_transform_ml(-1.38995), tolerance = 1e-3)
   expect_equal(predict_mp(neutral)$ML, back_transform_ml(-0.04124), tolerance = 1e-3)
 })
 

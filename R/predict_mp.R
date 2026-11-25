@@ -130,9 +130,9 @@ mechanistic_variables <- function(x) {
   fun_m <- fraction_unionised(x$pKa_acid, x$pKa_base, x$Type, PH_MILK)
 
   fu_m <- fu_p^0.448 / (0.000694^0.448 + fu_p^0.448)
-  mupu <- fun_p / fun_m
+  mupu <- fun_m / fun_p
 
-  d70      <- 10^x$LogD74 * fun_m / fun_p
+  d70      <- 10^x$LogD74 * mupu
   logd70   <- -0.88 + 1.29 * log10(d70)
   d_milk   <- 10^logd70
 
